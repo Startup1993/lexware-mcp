@@ -13,7 +13,16 @@ import {
   quotationInputShape,
   sizeParam,
 } from "./schemas.js";
-import { LOCAL_RO, RO, WRITE, detailResult, inlineList, pagedResult, text } from "./shared.js";
+import {
+  DEFAULT_PAGE_SIZE,
+  LOCAL_RO,
+  RO,
+  WRITE,
+  detailResult,
+  inlineList,
+  pagedResult,
+  text,
+} from "./shared.js";
 
 /** A Lexware voucher-document type and how to create it. */
 interface DocType {
@@ -108,6 +117,51 @@ function summaryGroupKey(row: VoucherlistEntry, groupBy: (typeof SUMMARY_GROUP_B
   }
 }
 
+/** Minimal surface of the client the prefix scan needs (so it's unit-testable). */
+type VoucherlistGetter = {
+  get<T>(path: string, query?: Record<string, string | number | boolean | undefined>): Promise<T>;
+};
+
+/**
+ * Lexware's voucherlist API can't filter by voucherNumber, so we page through it
+ * newest-first (`voucherDate,DESC`) and match client-side until `targetCount`
+ * hits are collected or the page cap is reached. The cap stops a near-miss prefix
+ * (e.g. a number that barely exists) from paging the whole ledger.
+ */
+export async function scanVoucherlistByNumberPrefix(
+  client: VoucherlistGetter,
+  params: Record<string, string | number | boolean | undefined>,
+  prefix: string,
+  targetCount: number,
+  maxPages: number,
+): Promise<{ matches: VoucherlistEntry[]; pagesScanned: number; scanCapped: boolean }> {
+  const SIZE = 250;
+  const needle = prefix.toLowerCase();
+  const matches: VoucherlistEntry[] = [];
+  let page = 0;
+  let totalPages = Infinity;
+  while (matches.length < targetCount && page < Math.min(totalPages, maxPages)) {
+    const res = await client.get<Paged<VoucherlistEntry>>("/v1/voucherlist", {
+      ...params,
+      sort: "voucherDate,DESC",
+      size: SIZE,
+      page,
+    });
+    totalPages = res.totalPages;
+    for (const v of res.content) {
+      if (typeof v.voucherNumber === "string" && v.voucherNumber.toLowerCase().startsWith(needle)) {
+        matches.push(v);
+        if (matches.length === targetCount) break;
+      }
+    }
+    page++;
+  }
+  // Capped = stopped on the page limit while more pages remained, not because the
+  // ledger ran out — only then is "raise maxPages / narrow filters" useful advice.
+  const scanCapped = page < totalPages && page >= maxPages;
+  return { matches: matches.slice(0, targetCount), pagesScanned: page, scanCapped };
+}
+
 /** Read tools for financial documents. Always registered. */
 export function registerDocumentReadTools(
   server: McpServer,
@@ -126,19 +180,62 @@ export function registerDocumentReadTools(
         voucherDateFrom: z.string().optional().describe("ISO date lower bound."),
         voucherDateTo: z.string().optional().describe("ISO date upper bound."),
         archived: jsonBool(z.boolean().optional()),
+        voucherNumberPrefix: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            "Client-side filter: only return vouchers whose voucherNumber starts with this " +
+              "(case-insensitive). Lexware can't filter by number, so this pages newest-first and " +
+              "collects up to `size` matches (bounded by maxPages). Set `size` to how many you want " +
+              "(e.g. 5 for the last 5 invoices).",
+          ),
+        maxPages: jsonNum(z.number().int().min(1).max(200).default(20)).describe(
+          "Only used with voucherNumberPrefix: safety cap on pages scanned (250 rows/page).",
+        ),
         page: pageParam,
         size: sizeParam,
       },
       annotations: RO,
     },
-    async ({ voucherType, voucherStatus, contactId, voucherDateFrom, voucherDateTo, archived, page, size }) => {
+    async ({
+      voucherType,
+      voucherStatus,
+      contactId,
+      voucherDateFrom,
+      voucherDateTo,
+      archived,
+      voucherNumberPrefix,
+      maxPages,
+      page,
+      size,
+    }) => {
+      const filters = { voucherType, voucherStatus, contactId, voucherDateFrom, voucherDateTo, archived };
+      if (voucherNumberPrefix) {
+        const target = size ?? DEFAULT_PAGE_SIZE;
+        const { matches, pagesScanned, scanCapped } = await scanVoucherlistByNumberPrefix(
+          client,
+          filters,
+          voucherNumberPrefix,
+          target,
+          maxPages,
+        );
+        const note =
+          matches.length < target
+            ? scanCapped
+              ? ` (scan cap of ${maxPages} page(s) reached — more may exist; narrow the filters or raise maxPages)`
+              : " (no more matches in the ledger)"
+            : "";
+        return {
+          structuredContent: { content: matches, count: matches.length, pagesScanned, scanCapped },
+          content: text(
+            `Found ${matches.length} voucher(s) with number starting '${voucherNumberPrefix}'${note}.\n\n` +
+              inlineList(matches),
+          ),
+        };
+      }
       const result = await client.get<Paged<VoucherlistEntry>>("/v1/voucherlist", {
-        voucherType,
-        voucherStatus,
-        contactId,
-        voucherDateFrom,
-        voucherDateTo,
-        archived,
+        ...filters,
         page,
         size,
       });
