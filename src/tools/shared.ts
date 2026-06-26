@@ -63,6 +63,14 @@ export function inlineList(items: unknown): string {
   );
 }
 
+/** Standard result for a single-record get tool: the object + summary header + its JSON. */
+export function detailResult(obj: unknown, summary: string) {
+  return {
+    structuredContent: obj,
+    content: text(`${summary}\n\n${inlineList(obj)}`),
+  };
+}
+
 /** Standard result for a paged list tool: the Paged envelope + summary + inlined rows. */
 export function pagedResult<T>(result: Paged<T>, noun: string) {
   const header =

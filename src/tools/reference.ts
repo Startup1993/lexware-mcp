@@ -2,7 +2,7 @@ import type { McpServer } from "skybridge/server";
 import { z } from "zod";
 import type { LexwareClient } from "../lexware/client.js";
 import { pageParam, sizeParam } from "./schemas.js";
-import { inlineList, RO, text } from "./shared.js";
+import { detailResult, inlineList, RO, text } from "./shared.js";
 
 /**
  * Read-only reference + supporting data. Always registered.
@@ -37,7 +37,7 @@ export function registerReferenceReadTools(server: McpServer, client: LexwareCli
     },
     async ({ id }) => {
       const payment = await client.get<Record<string, unknown>>(`/v1/payments/${encodeURIComponent(id)}`);
-      return { structuredContent: payment, content: text(`Payment info for ${id} retrieved.`) };
+      return detailResult(payment, `Payment info for ${id} retrieved.`);
     },
   );
 
@@ -50,7 +50,7 @@ export function registerReferenceReadTools(server: McpServer, client: LexwareCli
     },
     async ({ id }) => {
       const tmpl = await client.get<Record<string, unknown>>(`/v1/recurring-templates/${encodeURIComponent(id)}`);
-      return { structuredContent: tmpl, content: text(`Recurring template ${id} retrieved.`) };
+      return detailResult(tmpl, `Recurring template ${id} retrieved.`);
     },
   );
 

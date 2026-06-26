@@ -1,7 +1,7 @@
 import type { McpServer } from "skybridge/server";
 import { z } from "zod";
 import type { LexwareClient } from "../lexware/client.js";
-import { DESTRUCTIVE, inlineList, RO, text, WRITE } from "./shared.js";
+import { DESTRUCTIVE, detailResult, inlineList, RO, text, WRITE } from "./shared.js";
 
 /** Read tools for event subscriptions (webhooks). Always registered. */
 export function registerEventSubscriptionReadTools(server: McpServer, client: LexwareClient): void {
@@ -29,7 +29,7 @@ export function registerEventSubscriptionReadTools(server: McpServer, client: Le
     },
     async ({ id }) => {
       const sub = await client.get<Record<string, unknown>>(`/v1/event-subscriptions/${encodeURIComponent(id)}`);
-      return { structuredContent: sub, content: text(`Event subscription ${id} retrieved.`) };
+      return detailResult(sub, `Event subscription ${id} retrieved.`);
     },
   );
 }

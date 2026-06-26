@@ -11,7 +11,7 @@ import {
   sizeParam,
   versionParam,
 } from "./schemas.js";
-import { RO, WRITE, deepMergePatch, mergeAddresses, pagedResult, text } from "./shared.js";
+import { RO, WRITE, deepMergePatch, detailResult, mergeAddresses, pagedResult, text } from "./shared.js";
 
 /** Read tools for contacts. Always registered. */
 export function registerContactReadTools(server: McpServer, client: LexwareClient): void {
@@ -54,7 +54,7 @@ export function registerContactReadTools(server: McpServer, client: LexwareClien
     },
     async ({ id }) => {
       const contact = await client.get<Record<string, unknown>>(`/v1/contacts/${encodeURIComponent(id)}`);
-      return { structuredContent: contact, content: text(`Contact ${id} retrieved.`) };
+      return detailResult(contact, `Contact ${id} retrieved.`);
     },
   );
 }

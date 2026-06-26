@@ -9,7 +9,7 @@ import {
   sizeParam,
   versionParam,
 } from "./schemas.js";
-import { DESTRUCTIVE, RO, WRITE, deepMergePatch, pagedResult, text } from "./shared.js";
+import { DESTRUCTIVE, RO, WRITE, deepMergePatch, detailResult, pagedResult, text } from "./shared.js";
 
 /** Read tools for articles (products/services). Always registered. */
 export function registerArticleReadTools(server: McpServer, client: LexwareClient): void {
@@ -48,10 +48,7 @@ export function registerArticleReadTools(server: McpServer, client: LexwareClien
     },
     async ({ id }) => {
       const article = await client.get<Record<string, unknown>>(`/v1/articles/${encodeURIComponent(id)}`);
-      return {
-        structuredContent: article,
-        content: text(`Article ${id}: ${(article.title as string) ?? ""}`),
-      };
+      return detailResult(article, `Article ${id}: ${(article.title as string) ?? ""}`);
     },
   );
 }

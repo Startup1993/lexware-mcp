@@ -1,6 +1,6 @@
 import type { McpServer } from "skybridge/server";
 import type { LexwareClient } from "../lexware/client.js";
-import { RO, text } from "./shared.js";
+import { detailResult, RO } from "./shared.js";
 
 /** `get-profile`: organization profile. Also serves as an auth/connectivity smoke test. */
 export function registerProfileTools(server: McpServer, client: LexwareClient): void {
@@ -14,10 +14,7 @@ export function registerProfileTools(server: McpServer, client: LexwareClient): 
     async () => {
       const profile = await client.get<Record<string, unknown>>("/v1/profile");
       const name = (profile.companyName as string) ?? "(unknown)";
-      return {
-        structuredContent: profile,
-        content: text(`Connected to Lexware organization: ${name}.`),
-      };
+      return detailResult(profile, `Connected to Lexware organization: ${name}.`);
     },
   );
 }

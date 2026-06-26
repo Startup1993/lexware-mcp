@@ -13,7 +13,7 @@ import {
   quotationInputShape,
   sizeParam,
 } from "./schemas.js";
-import { LOCAL_RO, RO, WRITE, pagedResult, text } from "./shared.js";
+import { LOCAL_RO, RO, WRITE, detailResult, inlineList, pagedResult, text } from "./shared.js";
 
 /** A Lexware voucher-document type and how to create it. */
 interface DocType {
@@ -291,7 +291,7 @@ export function registerDocumentReadTools(
       },
       async ({ id }) => {
         const document = await client.get<Record<string, unknown>>(`/v1/${doc.path}/${encodeURIComponent(id)}`);
-        return { structuredContent: document, content: text(`${doc.label} ${id} retrieved.`) };
+        return detailResult(document, `${doc.label} ${id} retrieved.`);
       },
     );
   }
@@ -337,7 +337,7 @@ export function registerDocumentReadTools(
     },
     async ({ id }) => {
       const voucher = await client.get<Record<string, unknown>>(`/v1/vouchers/${encodeURIComponent(id)}`);
-      return { structuredContent: voucher, content: text(`Voucher ${id} retrieved.`) };
+      return detailResult(voucher, `Voucher ${id} retrieved.`);
     },
   );
 
@@ -368,7 +368,9 @@ export function registerDocumentReadTools(
         structuredContent: { vouchers, errors, count: vouchers.length },
         content: text(
           `Fetched ${vouchers.length}/${(ids as string[]).length} voucher(s)` +
-            (errors.length ? `; ${errors.length} failed.` : "."),
+            (errors.length ? `; ${errors.length} failed.` : ".") +
+            `\n\n${inlineList(vouchers)}` +
+            (errors.length ? `\n\nErrors:\n${JSON.stringify(errors, null, 2)}` : ""),
         ),
       };
     },
@@ -395,7 +397,7 @@ export function registerDocumentReadTools(
         );
       }
       const doc = await client.get<Record<string, unknown>>(`/v1/${path}/${encodeURIComponent(id)}`);
-      return { structuredContent: doc, content: text(`${voucherType} ${id} retrieved via /${path}.`) };
+      return detailResult(doc, `${voucherType} ${id} retrieved via /${path}.`);
     },
   );
 
