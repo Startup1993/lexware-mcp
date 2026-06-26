@@ -172,7 +172,8 @@ export function registerDocumentReadTools(
     {
       name: "get-voucherlist",
       description:
-        "Search the voucher list — the primary index of all financial documents (invoices, credit notes, quotations, etc.). voucherType and voucherStatus are required; use 'any' to match all. Results are paged.",
+        "Search the voucher list — the primary index of all financial documents (invoices, credit notes, quotations, etc.). voucherType and voucherStatus are required; use 'any' to match all. Results are paged. " +
+        "IMPORTANT voucherType gotcha: a regular 'Rechnung' you write in the Lexware UI is type 'invoice' (resolve it with get-invoice). Type 'salesinvoice' is a different thing — a booked income voucher ('Einnahme', e.g. created by a Stripe/payment-provider sync) that resolves via get-voucher, NOT get-invoice. If a type-based search comes up empty or a get-* 404s, you likely picked the wrong one of these two; use 'any' and read the voucherType on each row, or try the other type.",
       inputSchema: {
         voucherType: z.enum(VOUCHER_TYPES).default("any"),
         voucherStatus: z.enum(VOUCHER_STATUSES).default("any"),
