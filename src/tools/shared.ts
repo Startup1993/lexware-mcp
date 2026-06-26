@@ -15,13 +15,62 @@ export function text(message: string): [{ type: "text"; text: string }] {
   return [{ type: "text", text: message }];
 }
 
-/** Standard result for a paged list tool: the Paged envelope + a one-line summary. */
+/** Cap on inlined list JSON (chars). Above this, each entry is projected to identifiers. */
+const MAX_INLINE_CHARS = 12_000;
+
+/**
+ * Identifying fields kept when a list is too large to inline in full. `id` is
+ * always emitted separately, so a client can always follow up with a get-* call.
+ */
+const COMPACT_KEYS = [
+  "name",
+  "companyName",
+  "title",
+  "number",
+  "articleNumber",
+  "voucherNumber",
+  "voucherType",
+  "voucherStatus",
+  "voucherDate",
+  "contactName",
+  "totalAmount",
+  "openAmount",
+  "currency",
+] as const;
+
+/** Project one entry down to its id plus a few identifying fields. */
+function compactEntry(entry: unknown): unknown {
+  if (!isPlainObject(entry)) return entry;
+  const out: Record<string, unknown> = {};
+  if ("id" in entry) out.id = entry.id;
+  for (const key of COMPACT_KEYS) if (key in entry) out[key] = entry[key];
+  return Object.keys(out).length ? out : entry;
+}
+
+/**
+ * Serialize a list payload for the TEXT channel so IDs/names/fields actually
+ * reach clients that ignore `structuredContent`. Returns the full value as
+ * pretty JSON, or — when that would blow the token budget and the value is an
+ * array — a per-entry projection to identifiers (id always kept) plus a note so
+ * the model knows to drill into a get-* tool for full detail.
+ */
+export function inlineList(items: unknown): string {
+  const full = JSON.stringify(items, null, 2) ?? "null";
+  if (full.length <= MAX_INLINE_CHARS || !Array.isArray(items)) return full;
+  return (
+    JSON.stringify(items.map(compactEntry), null, 2) +
+    "\n\n(Large result: fields reduced to identifiers. Use the matching get-* tool with an id for the full record.)"
+  );
+}
+
+/** Standard result for a paged list tool: the Paged envelope + summary + inlined rows. */
 export function pagedResult<T>(result: Paged<T>, noun: string) {
+  const header =
+    `Found ${result.totalElements} ${noun}; showing page ${result.number + 1}/${result.totalPages} ` +
+    `(${result.numberOfElements} on this page).`;
   return {
     structuredContent: result,
-    content: text(
-      `Found ${result.totalElements} ${noun}; showing page ${result.number + 1}/${result.totalPages}.`,
-    ),
+    content: text(`${header}\n\n${inlineList(result.content)}`),
   };
 }
 

@@ -2,7 +2,7 @@ import type { McpServer } from "skybridge/server";
 import { z } from "zod";
 import type { LexwareClient } from "../lexware/client.js";
 import { pageParam, sizeParam } from "./schemas.js";
-import { RO, text } from "./shared.js";
+import { inlineList, RO, text } from "./shared.js";
 
 /**
  * Read-only reference + supporting data. Always registered.
@@ -15,7 +15,7 @@ export function registerReferenceReadTools(server: McpServer, client: LexwareCli
       const data = await client.get<unknown>(path);
       return {
         structuredContent: { data },
-        content: text(`Retrieved ${name.replace(/^get-/, "")}.`),
+        content: text(`Retrieved ${name.replace(/^get-/, "")}.\n\n${inlineList(data)}`),
       };
     });
 
@@ -66,7 +66,10 @@ export function registerReferenceReadTools(server: McpServer, client: LexwareCli
     },
     async ({ page, size }) => {
       const data = await client.get<unknown>("/v1/recurring-templates", { page, size });
-      return { structuredContent: { data }, content: text("Retrieved recurring templates.") };
+      return {
+        structuredContent: { data },
+        content: text(`Retrieved recurring templates.\n\n${inlineList(data)}`),
+      };
     },
   );
 }

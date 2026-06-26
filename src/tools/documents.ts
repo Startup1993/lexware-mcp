@@ -266,7 +266,15 @@ export function registerDocumentReadTools(
         },
         content: text(
           `Summarized ${scanned} voucher(s)${truncated ? ` (TRUNCATED at ${maxPages} pages × ${SIZE})` : ""}; ` +
-            `gross total ${currency ?? ""} ${grandTotal} across ${groupList.length} ${groupBy} group(s).`,
+            `gross total ${currency ?? ""} ${grandTotal} across ${groupList.length} ${groupBy} group(s).\n\n` +
+            JSON.stringify(
+              {
+                grandTotal: { sumTotalAmount: grandTotal, sumOpenAmount: grandOpen, currency },
+                groups: groupList,
+              },
+              null,
+              2,
+            ),
         ),
       };
     },
